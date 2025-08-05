@@ -1,0 +1,34 @@
+{
+  "name": "bordersenseai-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+  }, 
+  "overrides": {
+    "esbuild": "0.24.3"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "@vitejs/plugin-react": "^4.6.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "vite": "^4.4.9"
+  }
+}

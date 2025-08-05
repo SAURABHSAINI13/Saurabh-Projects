@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BorderSenseAI Alerts</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .alert { border: 1px solid #444; padding: 10px; margin-bottom: 10px; }
+    .critical { background: #ffe5e5; }
+  </style>
+</head>
+<body>
+  <h1>Alerts</h1>
+  <div id="alerts"></div>
+  <script>
+    async function load() {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch('http://localhost:5000/api/alerts', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await res.json();
+      const container = document.getElementById('alerts');
+      container.innerHTML = '';
+      data.forEach(a => {
+        const div = document.createElement('div');
+        div.className = 'alert ' + (a.severity === 'Critical' ? 'critical' : '');
+        div.innerHTML = `<strong>${a.type}</strong> [${a.severity}] - ${a.status} <br/>
+        ${a.geo?.lat}, ${a.geo?.lon} @ ${new Date(a.timestamp).toLocaleString()}`;
+        container.appendChild(div);
+      });
+    }
+    load();
+    setInterval(load, 10000);
+  </script>
+</body>
+</html>

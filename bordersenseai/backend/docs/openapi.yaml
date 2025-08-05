@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info:
+  title: BorderSenseAI API
+  version: "0.1.0"
+servers:
+  - url: http://localhost:5000/api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    # definitions: User, Alert, PatrolRoute, IncidentReport, AssetHealth, ModelStatus, Feedback
+paths:
+  /auth/login:
+    post: { ... }
+  /auth/register:
+    post: { ... }
+  /alerts:
+    get: { ... }
+  /alerts/{id}/acknowledge:
+    post: { ... }
+  /routes/optimize:
+    get: { ... }
+  /routes/assign:
+    post: { ... }
+  /incident-report:
+    post: { ... }
+  /assets/{id}/health:
+    get: { ... }
+  /maintenance/predictions:
+    get: { ... }
+  /models/status:
+    get: { ... }
+  /models/feedback:
+    post: { ... }
+security:
+  - bearerAuth: []

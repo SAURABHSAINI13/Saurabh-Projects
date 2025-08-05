@@ -1,0 +1,16 @@
+/* src/components/ui/card.css */
+.card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: white;
+  padding: 1.5rem;
+}
+.card-header {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+.card-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
