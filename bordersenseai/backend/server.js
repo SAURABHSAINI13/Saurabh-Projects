@@ -1,17 +1,17 @@
-// server.js
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server as IOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
-
-import connectDB from './config/db.js';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 
 // Routes
 import authRoutes from './routes/auth.js';
 import alertRoutes from './routes/alerts.js';
-import patrolRoutes from './routes/patrolRoutes.js'; // ensure filename matches
+import patrolRoutes from './routes/patrolRoutes.js';
 import reportRoutes from './routes/reports.js';
 import userRoutes from './routes/users.js';
 import modelRoutes from './routes/models.js';
@@ -19,19 +19,55 @@ import assetRoutes from './routes/assetRoutes.js';
 import aiModelRoutes from './routes/aiModelRoutes.js';
 import modelFeedbackRoutes from './routes/modelFeedbackRoutes.js';
 
-// Services
+// Workers
 import { processFeedbackForRetraining } from './workers/retrainingWorker.js';
 
-// Load env vars early
 dotenv.config();
+
+// ===== MongoDB Connection =====
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/bordersenseai', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('Connected to MongoDB');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+};
+
+// ===== JWT Auth Middleware =====
+const authenticateToken = (rolesAllowed = []) => {
+  return (req, res, next) => {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+      if (err) return res.status(403).json({ error: 'Invalid token' });
+      if (rolesAllowed.length && !rolesAllowed.includes(user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      req.user = user;
+      next();
+    });
+  };
+};
 
 const app = express();
 
-// Middleware
-app.use(cors()); // In production, restrict origin explicitly e.g., { origin: ['https://yourdomain.com'] }
+// ===== Middleware =====
+app.use(helmet());
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json());
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // per IP
+  })
+);
 
-// Route mounting (order/grouped)
+// ===== Routes =====
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/models', modelRoutes);
@@ -42,117 +78,106 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/ai-models', aiModelRoutes);
 app.use('/api/feedback', modelFeedbackRoutes);
 
-// Health check
+// Extra custom endpoints
+app.get('/api/alerts', authenticateToken(['field_officer', 'command_officer', 'admin']), async (req, res) => {
+  try {
+    const alerts = await mongoose.model('Alert').find({ active: true });
+    res.json(alerts);
+  } catch (err) {
+    console.error('GET /api/alerts error:', err);
+    res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
+});
+
+app.post('/api/ground-reports', authenticateToken(['field_officer']), async (req, res) => {
+  try {
+    const { report, media } = req.body;
+    if (!report) return res.status(400).json({ error: 'Report content required' });
+    const newReport = await mongoose.model('GroundReport').create({
+      userId: req.user.id,
+      report,
+      media,
+      timestamp: new Date(),
+    });
+    app.get('io').emit('new_report', newReport);
+    res.status(201).json({ message: 'Report submitted', data: newReport });
+  } catch (err) {
+    console.error('POST /api/ground-reports error:', err);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    env: process.env.NODE_ENV || 'undefined',
+    env: process.env.NODE_ENV || 'development',
   });
 });
 
-// Start background feedback processing
+// ===== Background Tasks =====
 setInterval(() => {
   processFeedbackForRetraining().catch((err) => {
     console.error('Error in feedback batch processing:', err);
   });
 }, 60 * 60 * 1000); // every hour
 
-// HTTP + Socket.IO setup
-const PORT = process.env.PORT || 5000;
+// ===== Server & Socket.IO =====
+const PORT = process.env.PORT || 3000;
 const httpServer = createServer(app);
 const io = new IOServer(httpServer, {
-  cors: {
-    origin: '*', // tighten in production
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: process.env.CLIENT_URL || 'http://localhost:5173', methods: ['GET', 'POST'] },
 });
 
-// Socket authentication middleware
 io.use((socket, next) => {
-  const authHeader = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
-  let token;
-
-  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1];
-  } else if (typeof socket.handshake.auth?.token === 'string') {
-    token = socket.handshake.auth.token;
-  }
-
-  if (!token) {
-    // If anonymous connections should be allowed, replace with: return next();
-    return next(new Error('Authentication error: token missing'));
-  }
-
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+  if (!token) return next(new Error('Authentication error: token missing'));
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     socket.user = payload;
     next();
   } catch (e) {
     console.warn('Socket auth failed:', e.message);
-    return next(new Error('Authentication error: invalid token'));
+    next(new Error('Authentication error: invalid token'));
   }
 });
 
 io.on('connection', (socket) => {
-  console.log(
-    'Socket connected:',
-    socket.id,
-    socket.user ? `(user=${socket.user.username || socket.user.id})` : '(anonymous)'
-  );
-
-  socket.on('subscribe', (room) => {
-    socket.join(room);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Socket disconnected:', socket.id);
-  });
+  console.log(`Socket connected: ${socket.id} (user=${socket.user?.username || socket.user?.id || 'anonymous'})`);
+  socket.on('subscribe', (room) => socket.join(room));
+  socket.on('disconnect', () => console.log(`Socket disconnected: ${socket.id}`));
 });
 
-// Expose io to controllers
 app.set('io', io);
 
-// Helper to broadcast alerts
-export const broadcastNewAlert = (alert) => {
-  io.emit('new-alert', alert);
-};
-
-// Global error handler (optional but recommended)
+// ===== Global Error Handler =====
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
+// ===== Start Server =====
 const start = async () => {
   try {
     await connectDB();
     httpServer.listen(PORT, () => {
-      console.log(
-        `🚀 Server + Socket.IO running on port ${PORT} (env: ${process.env.NODE_ENV || 'dev'})`
-      );
+      console.log(`🚀 Server + Socket.IO running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
     });
-
-    const shutdown = (signal) => {
-      console.log(`\nReceived ${signal}. Shutting down...`);
-      httpServer.close(() => {
-        console.log('HTTP/SOCKET server closed.');
-        process.exit(0);
-      });
-      setTimeout(() => {
-        console.warn('Forcefully exiting.');
-        process.exit(1);
-      }, 10000);
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
   }
 };
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\nShutting down...');
+  httpServer.close(() => {
+    mongoose.connection.close();
+    console.log('Server and MongoDB connection closed.');
+    process.exit(0);
+  });
+});
 
 start();

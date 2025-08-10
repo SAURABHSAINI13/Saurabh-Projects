@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'), // ✅ Now @ points to ./src
+      '@': path.resolve(__dirname, './src'), // ✅ Alias @ → ./src
     },
   },
   server: {
@@ -17,6 +17,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+    },
+    hmr: {
+      overlay: false, // ✅ Disable HMR error overlay
     },
   },
 });
