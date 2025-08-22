@@ -1,20 +1,9 @@
 // backend/routes/users.js
 import express from 'express';
-import mongoose from 'mongoose';
 import { authenticate, authorizeRoles } from '../middleware/auth.js';
+import User from '../models/User.js';
 
 const router = express.Router();
-
-// ====== User Schema ======
-const userSchema = new mongoose.Schema({
-  username: { type: String, required: true },
-  email: { type: String, required: true },
-  password: { type: String, required: true }, // Should be hashed in production
-  role: { type: String, required: true },
-  notifications: { type: Boolean, default: true },
-});
-
-const User = mongoose.model('User', userSchema);
 
 // ====== GET my profile ======
 router.get('/me', authenticate, async (req, res) => {

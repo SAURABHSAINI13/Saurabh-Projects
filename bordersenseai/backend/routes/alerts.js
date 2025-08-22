@@ -1,23 +1,9 @@
 import express from "express";
 import mongoose from "mongoose";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
+import Alert from "../models/Alert.js";
 
-// ====== Mongoose Model ======
-const alertSchema = new mongoose.Schema({
-  type: { type: String, required: true },
-  message: { type: String, required: true },
-  severity: { type: String, enum: ["low", "medium", "high", "critical"], required: true },
-  location: { type: Object },
-  source: { type: String, default: "Unknown" },
-  confidence: { type: Number, default: 1.0 },
-  status: { type: String, enum: ["New", "Acknowledged", "Dismissed", "Resolved"], default: "New" },
-  comments: [{ type: String }],
-  assignedTo: { type: String },
-  timestamp: { type: Date, default: Date.now },
-  active: { type: Boolean, default: true },
-});
-
-const Alert = mongoose.model("Alert", alertSchema);
+// Using the imported Alert model instead of redefining it
 
 // ====== Controllers ======
 const listAlerts = async (req, res) => {

@@ -1,71 +1,23 @@
 // backend/routes/auth.js
 import express from 'express';
-import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
-// import bcrypt from 'bcrypt'; // Uncomment for production password hashing
+import { login, register, logout, getProfile } from '../controllers/authController.js';
+import { authenticate, refreshToken } from '../middleware/auth.js';
 
 const router = express.Router();
-const User = mongoose.model('User');
 
-// LOGIN
-router.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
+// Login - Get access and refresh tokens
+router.post('/login', login);
 
-    // Find user
-    const user = await User.findOne({ username });
-    if (!user /* || !(await bcrypt.compare(password, user.password)) */ || user.password !== password) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+// Register new user (restricted in production)
+router.post('/register', register);
 
-    // Sign JWT
-    const token = jwt.sign(
-      { id: user._id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+// Refresh access token using refresh token
+router.post('/refresh-token', refreshToken);
 
-    res.json({
-      token,
-      user: {
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (err) {
-    console.error('POST /api/auth/login error:', err);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
+// Logout - invalidate refresh token
+router.post('/logout', authenticate, logout);
 
-// REGISTER (dev/testing only)
-router.post('/register', async (req, res) => {
-  try {
-    const { username, email, password, role } = req.body;
-
-    // Check duplicate
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
-    }
-
-    // const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = new User({
-      username,
-      email,
-      password, // hashedPassword in production
-      role: role || 'officer',
-      notifications: true
-    });
-
-    await newUser.save();
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (err) {
-    console.error('POST /api/auth/register error:', err);
-    res.status(500).json({ error: 'Registration failed' });
-  }
-});
+// Get current user profile
+router.get('/profile', authenticate, getProfile);
 
 export default router;

@@ -391,3 +391,39 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Login Page Styles */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: var(--spacing-4);
+  background-color: var(--bg-secondary);
+}
+
+.login-container .card {
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 0;
+}
+
+.login-container .card-header {
+  text-align: center;
+}
+
+.login-container .card-title {
+  font-size: var(--text-2xl);
+  color: var(--primary);
+}
+
+.login-container .error-message {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  margin-top: var(--spacing-1);
+}
+
+.login-container .button {
+  width: 100%;
+  margin-top: var(--spacing-4);
+}

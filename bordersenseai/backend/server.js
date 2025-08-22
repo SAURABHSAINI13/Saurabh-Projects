@@ -4,14 +4,18 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server as IOServer } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+
+// Import authentication middleware
+import { authenticate, authorizeRoles } from './middleware/auth.js';
+import { tokenManager } from './utils/jwt.js';
+import { logger } from './utils/logger.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
 import alertRoutes from './routes/alerts.js';
-import patrolRoutes from './routes/patrolRoutes.js';
+import patrolRoutes from './routes/routes.js';
 import reportRoutes from './routes/reports.js';
 import userRoutes from './routes/users.js';
 import modelRoutes from './routes/models.js';
@@ -31,28 +35,14 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Connected to MongoDB');
+    logger.info({ msg: 'Connected to MongoDB' });
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    logger.error({ msg: 'MongoDB connection error', error: err.message });
     process.exit(1);
   }
 };
 
-// ===== JWT Auth Middleware =====
-const authenticateToken = (rolesAllowed = []) => {
-  return (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-      if (err) return res.status(403).json({ error: 'Invalid token' });
-      if (rolesAllowed.length && !rolesAllowed.includes(user.role)) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      req.user = user;
-      next();
-    });
-  };
-};
+// Authentication middleware is now imported from './middleware/auth.js'
 
 const app = express();
 
@@ -79,17 +69,17 @@ app.use('/api/ai-models', aiModelRoutes);
 app.use('/api/feedback', modelFeedbackRoutes);
 
 // Extra custom endpoints
-app.get('/api/alerts', authenticateToken(['field_officer', 'command_officer', 'admin']), async (req, res) => {
+app.get('/api/alerts', authenticate, authorizeRoles(['FIELD_OFFICER', 'COMMAND_CENTER', 'ADMIN']), async (req, res) => {
   try {
     const alerts = await mongoose.model('Alert').find({ active: true });
     res.json(alerts);
   } catch (err) {
-    console.error('GET /api/alerts error:', err);
+    logger.error({ msg: 'Failed to fetch alerts', error: err.message });
     res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
 
-app.post('/api/ground-reports', authenticateToken(['field_officer']), async (req, res) => {
+app.post('/api/ground-reports', authenticate, authorizeRoles(['FIELD_OFFICER']), async (req, res) => {
   try {
     const { report, media } = req.body;
     if (!report) return res.status(400).json({ error: 'Report content required' });
@@ -102,7 +92,7 @@ app.post('/api/ground-reports', authenticateToken(['field_officer']), async (req
     app.get('io').emit('new_report', newReport);
     res.status(201).json({ message: 'Report submitted', data: newReport });
   } catch (err) {
-    console.error('POST /api/ground-reports error:', err);
+    logger.error({ msg: 'Failed to submit report', error: err.message });
     res.status(500).json({ error: 'Failed to submit report' });
   }
 });
@@ -134,26 +124,34 @@ io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
   if (!token) return next(new Error('Authentication error: token missing'));
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = tokenManager.verifyAccessToken(token);
     socket.user = payload;
     next();
   } catch (e) {
-    console.warn('Socket auth failed:', e.message);
+    logger.warn({ msg: 'Socket auth failed', error: e.message });
     next(new Error('Authentication error: invalid token'));
   }
 });
 
 io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id} (user=${socket.user?.username || socket.user?.id || 'anonymous'})`);
+  logger.info({ 
+    msg: 'Socket connected', 
+    socketId: socket.id, 
+    user: socket.user?.username || socket.user?.id || 'anonymous' 
+  });
+  
   socket.on('subscribe', (room) => socket.join(room));
-  socket.on('disconnect', () => console.log(`Socket disconnected: ${socket.id}`));
+  
+  socket.on('disconnect', () => {
+    logger.info({ msg: 'Socket disconnected', socketId: socket.id });
+  });
 });
 
 app.set('io', io);
 
 // ===== Global Error Handler =====
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  logger.error({ msg: 'Unhandled error', error: err.message, stack: err.stack });
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -162,7 +160,11 @@ const start = async () => {
   try {
     await connectDB();
     httpServer.listen(PORT, () => {
-      console.log(`🚀 Server + Socket.IO running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+      logger.info({ 
+        msg: 'Server started', 
+        port: PORT, 
+        environment: process.env.NODE_ENV || 'development' 
+      });
     });
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -172,10 +174,10 @@ const start = async () => {
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\nShutting down...');
+  logger.info({ msg: 'Shutting down server' });
   httpServer.close(() => {
     mongoose.connection.close();
-    console.log('Server and MongoDB connection closed.');
+    logger.info({ msg: 'Server and MongoDB connection closed' });
     process.exit(0);
   });
 });

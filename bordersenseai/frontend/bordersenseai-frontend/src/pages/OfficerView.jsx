@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 import '../styles/components.css';
 import 'leaflet/dist/leaflet.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const socket = io(API_URL, { auth: { token: localStorage.getItem('token') } });
 
 const OfficerView = () => {
