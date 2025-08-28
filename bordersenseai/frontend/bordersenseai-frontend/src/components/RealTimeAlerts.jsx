@@ -1,29 +1,23 @@
 // src/components/RealTimeAlerts.jsx
 import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import { socket } from '../socket';
 
 export default function RealTimeAlerts({ onNewAlert }) {
-  const [socket, setSocket] = useState(null);
   const [latest, setLatest] = useState(null);
 
   useEffect(() => {
-    const s = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001');
-    setSocket(s);
-
-    s.on('connect', () => {
-      console.log('Socket connected', s.id);
-    });
-
-    s.on('new-alert', (alert) => {
+    const handleNewAlert = (alert) => {
       console.log('Realtime alert received', alert);
       setLatest(alert);
       if (onNewAlert) onNewAlert(alert);
-    });
+    };
+
+    socket.on('new-alert', handleNewAlert);
 
     return () => {
-      s.disconnect();
+      socket.off('new-alert', handleNewAlert);
     };
-  }, []);
+  }, [onNewAlert]);
 
   if (!latest) return null;
 

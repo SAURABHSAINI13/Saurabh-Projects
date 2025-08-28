@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { socket } from './socket';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import DataUpload from './components/DataUpload';
@@ -45,6 +46,28 @@ export default function App() {
 
   const addReport = useCallback((newReport) => {
     setReports((prevReports) => [newReport, ...prevReports]);
+  }, []);
+
+  useEffect(() => {
+    const onConnect = () => console.log("✅ connected:", socket.id);
+    const onHello = (msg) => console.log("hello event:", msg);
+    const onError = (err) => console.error("connect_error:", err);
+    const onDisconnect = (reason) => console.warn("disconnected:", reason);
+
+    socket.on("connect", onConnect);
+    socket.on("hello", onHello);
+    socket.on("connect_error", onError);
+    socket.on("disconnect", onDisconnect);
+
+    // quick round-trip test
+    socket.emit("ping", "hi");
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("hello", onHello);
+      socket.off("connect_error", onError);
+      socket.off("disconnect", onDisconnect);
+    };
   }, []);
 
   useEffect(() => {

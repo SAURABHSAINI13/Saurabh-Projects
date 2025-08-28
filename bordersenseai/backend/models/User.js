@@ -19,7 +19,19 @@ const userSchema = new mongoose.Schema({
     default: [ROLES.FIELD_OFFICER]
   },
   lastLogin: Date,
-  active: { type: Boolean, default: true }
+  active: { type: Boolean, default: true },
+  blockedUntil: { type: Date, default: null }, // Add blockedUntil field to track account lockouts
+  
+  // Multi-factor authentication fields
+  mfaEnabled: { type: Boolean, default: false },
+  mfaSecret: { type: String, default: null },
+  mfaVerified: { type: Boolean, default: false },
+  backupCodes: [{ type: String }],
+  
+  // Account recovery fields
+  recoveryEmail: { type: String },
+  recoveryToken: { type: String },
+  recoveryTokenExpires: { type: Date }
 }, { timestamps: true });
 
 // Password hashing with Argon2id

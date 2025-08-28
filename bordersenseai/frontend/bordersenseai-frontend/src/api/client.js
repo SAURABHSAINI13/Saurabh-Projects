@@ -5,7 +5,7 @@ import { sanitizeInput } from '../utils/validation';
 import { recordAttempt, generateRateLimitKey } from '../utils/rateLimit';
 import { logSecurityEvent, LOG_LEVELS, SECURITY_EVENTS, monitorSuspiciousActivity } from '../utils/securityLogger';
  import { getRateLimit } from '../utils/rateLimit';
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Generate CSRF token on module load
 if (!localStorage.getItem('csrf_token')) {

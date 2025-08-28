@@ -45,7 +45,8 @@ export const login = async (req, res) => {
         id: user._id,
         name: user.name,
         username: user.username,
-        roles: user.roles
+        roles: user.roles,
+        blockedUntil: null // Always include blockedUntil property (null by default)
       }
     });
   } catch (e) {

@@ -1,12 +1,11 @@
 // src/components/AdminView.jsx
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polyline, Circle } from 'react-leaflet';
-import io from 'socket.io-client';
+import { socket } from '../socket';
 import '../styles/components.css';
 import 'leaflet/dist/leaflet.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const socket = io(API_URL, { auth: { token: localStorage.getItem('token') } });
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AdminView = () => {
   const [alerts, setAlerts] = useState([]);
